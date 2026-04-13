@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="Server Storage Dashboard — Monitor storage, backup status, free space, and troubleshoot issues with an AI assistant.">
+  <title>Storage Dashboard — Server Status Overview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+
+<body>
+
+  <!-- Page Loader -->
+  <div class="page-loader" id="pageLoader">
+    <div class="loader-content">
+      <div class="loader-spinner"></div>
+      <p>Initializing dashboard…</p>
+    </div>
+  </div>
+
+  <div class="app-wrapper">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">💾</div>
+        <div>
+          <h2>StorageOps</h2>
+          <span>Server Dashboard</span>
+        </div>
+      </div>
+      <ul class="sidebar-nav">
+        <li><a href="#" class="active" id="nav-overview"><span class="nav-icon">📊</span> Overview</a></li>
+        <li><a href="#" id="nav-servers"><span class="nav-icon">🖥️</span> Servers</a></li>
+        <li><a href="#" id="nav-storage"><span class="nav-icon">💽</span> Storage</a></li>
+        <li><a href="#" id="nav-backups"><span class="nav-icon">☁️</span> Backups</a></li>
+        <li><a href="#" id="nav-assistant"><span class="nav-icon">🤖</span> AI Assistant</a></li>
+        <li><a href="#" id="nav-alerts"><span class="nav-icon">🔔</span> Alerts</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <div class="server-info">
+          <div class="server-dot"></div>
+          <div>
+            <strong>All Systems Nominal</strong>
+            <span id="sidebarUptime">Uptime: loading…</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <main class="main-content">
+
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <h1>Server <span>Dashboard</span></h1>
+        <div class="datetime">
+          <div class="live-dot"></div>
+          <span id="liveDateTime">Loading…</span>
+        </div>
+      </div>
+
+      <!-- Status Cards -->
+      <section class="status-grid" id="statusGrid">
+
+        <div class="status-card storage animate-in" id="card-storage">
+          <div class="card-accent"></div>
+          <div class="card-header">
+            <div class="card-icon">💽</div>
+            <div class="card-badge badge-online" id="storageBadge">Online</div>
+          </div>
+          <div class="card-value" id="storageValue">—</div>
+          <div class="card-label">Total Storage Used</div>
+          <div class="card-bar">
+            <div class="bar-fill" id="storageBar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="status-card backup animate-in" id="card-backup">
+          <div class="card-accent"></div>
+          <div class="card-header">
+            <div class="card-icon">☁️</div>
+            <div class="card-badge badge-online" id="backupBadge">Healthy</div>
+          </div>
+          <div class="card-value" id="backupValue">—</div>
+          <div class="card-label">Last Backup</div>
+          <div class="card-bar">
+            <div class="bar-fill" id="backupBar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="status-card freespace animate-in" id="card-freespace">
+          <div class="card-accent"></div>
+          <div class="card-header">
+            <div class="card-icon">📂</div>
+            <div class="card-badge badge-online" id="freespaceBadge">OK</div>
+          </div>
+          <div class="card-value" id="freespaceValue">—</div>
+          <div class="card-label">Free Space Available</div>
+          <div class="card-bar">
+            <div class="bar-fill" id="freespaceBar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="status-card health animate-in" id="card-health">
+          <div class="card-accent"></div>
+          <div class="card-header">
+            <div class="card-icon">❤️</div>
+            <div class="card-badge badge-healthy" id="healthBadge">Healthy</div>
+          </div>
+          <div class="card-value" id="healthValue">—</div>
+          <div class="card-label">Server Health Score</div>
+          <div class="card-bar">
+            <div class="bar-fill" id="healthBar" style="width:0%"></div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Panels Row -->
+      <section class="panels-grid">
+
+        <!-- Server Status Table -->
+        <div class="panel animate-in">
+          <div class="panel-title"><span class="title-icon">🖥️</span> Server Status</div>
+          <table class="server-table" id="serverTable">
+            <thead>
+              <tr>
+                <th>Server</th>
+                <th>Status</th>
+                <th>Storage</th>
+                <th>CPU</th>
+              </tr>
+            </thead>
+            <tbody id="serverTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Storage Distribution Chart -->
+        <div class="panel animate-in">
+          <div class="panel-title"><span class="title-icon">📈</span> Storage Distribution</div>
+          <div class="chart-wrap">
+            <canvas id="storageChart"></canvas>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- AI Troubleshooting Assistant -->
+      <section class="ai-assistant-section animate-in" id="aiSection">
+        <div class="ai-header">
+          <div class="ai-avatar">🤖</div>
+          <div class="ai-header-text">
+            <h3>AI Troubleshooting Assistant</h3>
+            <p>Ask about storage, backups, server health, and basic troubleshooting</p>
+          </div>
+        </div>
+
+        <div class="ai-guardrail-notice">
+          <span class="guard-icon">🛡️</span>
+          <span>This assistant is restricted to <strong>&nbsp;storage & server troubleshooting&nbsp;</strong> topics
+            only. Off-topic queries will be politely declined.</span>
+        </div>
+
+        <div class="quick-actions" id="quickActions">
+          <button class="quick-chip" data-query="Why is storage usage high?">💾 High storage usage</button>
+          <button class="quick-chip" data-query="Check backup status">☁️ Backup status</button>
+          <button class="quick-chip" data-query="Server is slow, what should I do?">🐢 Slow server</button>
+          <button class="quick-chip" data-query="How to free up disk space?">🧹 Free disk space</button>
+          <button class="quick-chip" data-query="Explain RAID configuration">🔧 RAID setup</button>
+          <button class="quick-chip" data-query="Check disk health">❤️ Disk health</button>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+          <!-- Messages populated by JS -->
+        </div>
+
+        <div class="chat-input-row">
+          <input type="text" id="chatInput" placeholder="Ask about storage, backups, or server troubleshooting…"
+            autocomplete="off">
+          <button id="chatSendBtn">Send ➤</button>
+        </div>
+      </section>
+
+      <!-- Recent Alerts -->
+      <section class="panel animate-in" style="margin-bottom: 28px;">
+        <div class="panel-title"><span class="title-icon">🔔</span> Recent Alerts</div>
+        <div class="alert-list" id="alertList">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
