@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dashboard — Enterprise infrastructure monitoring with role-based access control.">
+  <title>Dashboard — Infrastructure Monitoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+
+<body>
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- Page Loader -->
+  <div class="page-loader" id="pageLoader">
+    <div class="loader-content">
+      <div class="loader-spinner"></div>
+      <p>Initializing Dashboard…</p>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Action Modal (Incident / CRQ / Vendor Case) -->
+  <div class="modal-overlay" id="incidentModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="actionModalTitle">🎫 Raise Action</h3><button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>Action Type</label>
+          <select id="actionType" class="modal-select">
+            <option value="incident">🎫 Incident (INC)</option>
+            <option value="change">🔄 Change Request (CRQ)</option>
+            <option value="vendor">🏢 Vendor Case (VDR)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Severity</label><select id="incidentSeverity" class="modal-select">
+            <option value="critical">🔴 Critical</option>
+            <option value="high">🟠 High</option>
+            <option value="medium" selected>🟡 Medium</option>
+          </select></div>
+        <div class="form-group"><label>Alert Title</label><input type="text" id="incidentTitle" class="modal-input" readonly></div>
+        <div class="form-group"><label>Description</label><textarea id="incidentDesc" class="modal-textarea" rows="3"></textarea></div>
+        <div class="form-group"><label>Assign To</label><select id="incidentAssign" class="modal-select">
+            <option value="infra-team">Infrastructure Team</option>
+            <option value="storage-team">Storage Team</option>
+            <option value="backup-team">Backup Team</option>
+            <option value="network-team">Network Team</option>
+            <option value="vendor-support">Vendor Support</option>
+          </select></div>
+        <div class="form-group"><label>Initial Worknote</label><textarea id="incidentWorknote" class="modal-textarea" rows="2" placeholder="Add initial worknotes…"></textarea></div>
+      </div>
+      <div class="modal-footer"><button class="modal-btn secondary" id="modalCancel">Cancel</button><button
+          class="modal-btn primary" id="modalSubmit">Submit</button></div>
+    </div>
+  </div>
+
+  <!-- Worknote Modal -->
+  <div class="modal-overlay" id="worknoteModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📝 Add Worknote</h3><button class="modal-close" id="worknoteClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>Ticket</label><input type="text" id="worknoteTicketId" class="modal-input" readonly></div>
+        <div class="form-group"><label>New Status</label><select id="worknoteStatus" class="modal-select">
+            <option value="">— No change —</option>
+            <option value="in-progress">🔵 In Progress</option>
+            <option value="resolved">🟢 Resolved</option>
+            <option value="closed">⚫ Closed</option>
+          </select></div>
+        <div class="form-group"><label>Worknote</label><textarea id="worknoteText" class="modal-textarea" rows="3" placeholder="Describe the update…"></textarea></div>
+      </div>
+      <div class="modal-footer"><button class="modal-btn secondary" id="worknoteCancel">Cancel</button><button
+          class="modal-btn primary" id="worknoteSubmit">Save Worknote</button></div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-card modal-wide">
+      <div class="modal-header">
+        <h3>⚙️ Dashboard Settings</h3><button class="modal-close" id="settingsClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">General</button>
+          <button class="settings-tab" data-tab="thresholds">Thresholds</button>
+          <button class="settings-tab" data-tab="audit">Audit Log</button>
+        </div>
+        <div class="settings-panel active" id="settingsGeneral">
+          <div class="setting-row"><label>Session Timeout (minutes)</label><input type="number" id="settingTimeout"
+              class="modal-input" value="30" min="5" max="120"></div>
+          <div class="setting-row"><label>Default Refresh Interval</label><select id="settingRefresh"
+              class="modal-select">
+              <option value="0">Off</option>
+              <option value="30">30s</option>
+              <option value="60" selected>60s</option>
+              <option value="300">5m</option>
+            </select></div>
+          <div class="setting-row"><label>Enable Toast Notifications</label><label class="toggle-switch"><input
+                type="checkbox" id="settingToasts" checked><span class="toggle-slider"></span></label></div>
+          <div class="setting-row"><label>Enable Audit Logging</label><label class="toggle-switch"><input
+                type="checkbox" id="settingAudit" checked><span class="toggle-slider"></span></label></div>
+        </div>
+        <div class="settings-panel" id="settingsThresholds">
+          <div class="setting-row"><label>Storage Critical (%)</label><input type="number" id="threshStorage"
+              class="modal-input" value="80" min="50" max="100"></div>
+          <div class="setting-row"><label>CPU High (%)</label><input type="number" id="threshCPU" class="modal-input"
+              value="75" min="50" max="100"></div>
+          <div class="setting-row"><label>Memory High (%)</label><input type="number" id="threshMem" class="modal-input"
+              value="80" min="50" max="100"></div>
+          <div class="setting-row"><label>Health Degraded (%)</label><input type="number" id="threshHealth"
+              class="modal-input" value="80" min="50" max="100"></div>
+        </div>
+        <div class="settings-panel" id="settingsAudit">
+          <div class="audit-log-container" id="auditLogContainer">
+            <table class="server-table audit-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Action</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="auditTableBody"></tbody>
+            </table>
+          </div>
+          <button class="panel-action-btn" id="clearAuditLog" style="margin-top:12px">🗑️ Clear Audit Log</button>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="modal-btn secondary" id="settingsCancel">Close</button><button
+          class="modal-btn primary" id="settingsSave">Save Settings</button></div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- LOGIN PAGE                                                        -->
+  <!-- ================================================================ -->
+  <div class="page page-login active" id="pageLogin">
+    <div class="login-wrapper">
+      <div class="login-card">
+        <div class="login-brand">
+          <div class="login-logo"><span class="logo-icon">🖥️</span>
+            <div class="logo-ring"></div>
+          </div>
+          <h1>Dashboard</h1>
+          <p class="login-tagline">Login Page</p>
+        </div>
+        <form class="login-form" id="loginForm" autocomplete="off">
+          <div class="form-group" id="fg-username">
+            <label for="loginUsername">Username</label>
+            <div class="input-wrap"><span class="input-icon">👤</span><input type="text" id="loginUsername"
+                placeholder="Enter your username" required></div>
+          </div>
+          <div class="form-group" id="fg-password">
+            <label for="loginPassword">Password</label>
+            <div class="input-wrap"><span class="input-icon">🔒</span><input type="password" id="loginPassword"
+                placeholder="Enter your password" required></div>
+          </div>
+          <div class="login-options">
+            <label class="remember-me"><input type="checkbox" id="rememberMe" checked><span
+                class="checkmark"></span>Remember me</label>
+            <a href="#" class="forgot-link"
+              onclick="event.preventDefault();showToast('Contact your system administrator to reset your password.','info')">Forgot
+              password?</a>
+          </div>
+          <button type="submit" class="login-btn" id="loginBtn"><span class="btn-text">Sign In</span><span
+              class="btn-loader"></span></button>
+          <div class="login-error" id="loginError"></div>
+        </form>
+        <div class="demo-credentials">
+          <div class="demo-label"><span class="demo-icon">💡</span> Demo Accounts</div>
+          <div class="demo-grid">
+            <button class="demo-user" data-user="admin" data-pass="admin123"><strong>Admin</strong><span>Full
+                access</span></button>
+            <button class="demo-user" data-user="operator"
+              data-pass="ops456"><strong>Operator</strong><span>Troubleshoot</span></button>
+            <button class="demo-user" data-user="viewer"
+              data-pass="view789"><strong>Viewer</strong><span>Read-only</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="login-footer">
+        <p>Dashboard v3.0 — Role-Based Access Control</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- HOME PAGE                                                         -->
+  <!-- ================================================================ -->
+  <div class="page page-home" id="pageHome">
+    <div class="home-wrapper">
+      <div class="home-topbar">
+        <div class="home-brand">
+          <div class="brand-icon-sm">🖥️</div><span>Dashboard</span>
+        </div>
+        <div class="home-topbar-right">
+          <div class="home-datetime">
+            <div class="live-dot"></div><span id="homeLiveDateTime">Loading…</span>
+          </div>
+          <div class="home-user-badge" id="homeUserBadge">
+            <div class="user-avatar-sm" id="homeUserAvatar">A</div>
+            <span id="homeUserName">Admin</span>
+            <span class="role-chip" id="homeRoleChip">Admin</span>
+          </div>
+          <button class="icon-btn" id="homeLogoutBtn" title="Logout"><span>🚪</span></button>
+        </div>
+      </div>
+
+      <section class="welcome-banner" id="welcomeBanner">
+        <div class="welcome-bg"></div>
+        <div class="welcome-content">
+          <h1 id="welcomeTitle">Good evening, Admin 👋</h1>
+          <p id="welcomeSubtitle">All systems running normally.</p>
+          <div class="welcome-role-info" id="welcomeRoleInfo"></div>
+        </div>
+      </section>
+
+      <section class="home-stats-grid">
+        <div class="home-stat-card">
+          <div class="hstat-icon" style="background:var(--gradient-blue);">🖥️</div>
+          <div class="hstat-info">
+            <div class="hstat-value" id="hstatServers">—</div>
+            <div class="hstat-label">Active Servers</div>
+          </div>
+        </div>
+        <div class="home-stat-card">
+          <div class="hstat-icon" style="background:var(--gradient-purple);">💽</div>
+          <div class="hstat-info">
+            <div class="hstat-value" id="hstatStorage">—</div>
+            <div class="hstat-label">Total Storage</div>
+          </div>
+        </div>
+        <div class="home-stat-card">
+          <div class="hstat-icon" style="background:var(--gradient-green);">❤️</div>
+          <div class="hstat-info">
+            <div class="hstat-value" id="hstatHealth">—</div>
+            <div class="hstat-label">Cluster Health</div>
+          </div>
+        </div>
+        <div class="home-stat-card">
+          <div class="hstat-icon" style="background:var(--gradient-amber);">🔔</div>
+          <div class="hstat-info">
+            <div class="hstat-value" id="hstatAlerts">—</div>
+            <div class="hstat-label">Active Alerts</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="home-section">
+        <h2 class="home-section-title">Quick Navigation</h2>
+        <div class="nav-grid" id="homeNavGrid"></div>
+      </section>
+
+      <div class="home-two-col">
+        <section class="home-panel">
+          <h2 class="home-section-title">Recent Activity</h2>
+          <div class="activity-timeline" id="activityTimeline"></div>
+        </section>
+        <section class="home-panel">
+          <h2 class="home-section-title">Quick Actions</h2>
+          <div class="quick-action-grid" id="quickActionGrid"></div>
+          <div class="role-notice" id="roleNotice"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- DASHBOARD                                                         -->
+  <!-- ================================================================ -->
+  <div class="page page-dashboard" id="pageDashboard">
+    <div class="app-wrapper">
+
+      <!-- SIDEBAR -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-icon">🖥️</div>
+          <div>
+            <h2>Dashboard</h2><span>Infrastructure</span>
+          </div>
+        </div>
+        <div class="sidebar-user" id="sidebarUser">
+          <div class="user-avatar" id="sidebarAvatar">A</div>
+          <div class="user-info"><strong id="sidebarUserName">Admin</strong><span
+              id="sidebarUserRole">Administrator</span></div>
+          <span class="role-chip sidebar-role-chip" id="sidebarRoleChip">Admin</span>
+        </div>
+        <ul class="sidebar-nav" id="sidebarNavList"></ul>
+        <div class="sidebar-actions">
+          <button class="sidebar-action-btn" id="btnHomePage"><span>🏠</span> Home</button>
+          <button class="sidebar-action-btn rbac-admin" id="btnSettings"><span>⚙️</span> Settings</button>
+          <button class="sidebar-action-btn logout" id="btnLogout"><span>🚪</span> Logout</button>
+        </div>
+        <div class="sidebar-footer">
+          <div class="server-info">
+            <div class="server-dot"></div>
+            <div><strong>All Systems Nominal</strong><span id="sidebarUptime">Uptime: loading…</span></div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+      <main class="main-content">
+        <div class="top-bar">
+          <div class="top-bar-left">
+            <button class="hamburger-btn" id="hamburgerBtn"><span></span><span></span><span></span></button>
+            <div>
+              <h1 id="dashPageTitle">Overview</h1>
+              <div class="breadcrumb"><span>Home</span> <span class="bc-sep">/</span> <span>Dashboard</span> <span
+                  class="bc-sep">/</span> <span class="bc-active" id="bcActive">Overview</span></div>
+            </div>
+          </div>
+          <div class="top-bar-right">
+            <div class="auto-refresh rbac-no-viewer" id="autoRefreshWrap">
+              <label class="refresh-label">Auto-refresh:</label>
+              <select id="refreshInterval" class="refresh-select">
+                <option value="0">Off</option>
+                <option value="30">30s</option>
+                <option value="60" selected>60s</option>
+                <option value="300">5m</option>
+              </select>
+              <div class="refresh-countdown" id="refreshCountdown" title="Next refresh"><svg class="countdown-ring"
+                  viewBox="0 0 20 20">
+                  <circle cx="10" cy="10" r="8" class="countdown-track" />
+                  <circle cx="10" cy="10" r="8" class="countdown-fill" id="countdownFill" />
+                </svg><span id="countdownText">60</span></div>
+            </div>
+            <div class="datetime">
+              <div class="live-dot"></div><span id="liveDateTime">Loading…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== OVERVIEW ==================== -->
+        <div class="dash-view active" id="view-overview">
+          <section class="status-grid" id="statusGrid">
+            <div class="status-card storage animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">💽</div>
+                <div class="card-badge badge-online" id="storageBadge">Online</div>
+              </div>
+              <div class="card-value" id="storageValue">—</div>
+              <div class="card-label">Total Storage Used</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="storageBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="status-card backup animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">☁️</div>
+                <div class="card-badge badge-online" id="backupBadge">Healthy</div>
+              </div>
+              <div class="card-value" id="backupValue">—</div>
+              <div class="card-label">Last Backup</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="backupBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="status-card freespace animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">📂</div>
+                <div class="card-badge badge-online" id="freespaceBadge">OK</div>
+              </div>
+              <div class="card-value" id="freespaceValue">—</div>
+              <div class="card-label">Free Space Available</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="freespaceBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="status-card health animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">❤️</div>
+                <div class="card-badge badge-healthy" id="healthBadge">Healthy</div>
+              </div>
+              <div class="card-value" id="healthValue">—</div>
+              <div class="card-label">Server Health Score</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="healthBar" style="width:0%"></div>
+              </div>
+            </div>
+          </section>
+          <section class="panel animate-in">
+            <div class="panel-header">
+              <div class="panel-title"><span class="title-icon">🖥️</span> All Devices / Servers — Status</div>
+            </div>
+            <table class="server-table">
+              <thead>
+                <tr>
+                  <th>Device</th>
+                  <th>Status</th>
+                  <th>Storage</th>
+                  <th>CPU</th>
+                  <th>Health</th>
+                </tr>
+              </thead>
+              <tbody id="overviewDeviceTable"></tbody>
+            </table>
+          </section>
+          <section class="panel animate-in" id="focusAreasPanel">
+            <div class="panel-header">
+              <div class="panel-title"><span class="title-icon">🎯</span> Areas Requiring Attention</div>
+            </div>
+            <div class="focus-grid" id="focusGrid"></div>
+          </section>
+        </div>
+
+        <!-- ==================== SERVERS ==================== -->
+        <div class="dash-view" id="view-servers">
+          <section class="panel animate-in">
+            <div class="panel-header">
+              <div class="panel-title"><span class="title-icon">🖥️</span> Server Details</div>
+              <div class="panel-actions">
+                <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="serverSearch"
+                    placeholder="Filter servers…" class="search-input"></div>
+                <button class="panel-action-btn rbac-no-viewer" id="exportCSV">📥 Export</button>
+              </div>
+            </div>
+            <table class="server-table">
+              <thead>
+                <tr>
+                  <th>Server</th>
+                  <th>Status</th>
+                  <th>Storage</th>
+                  <th>CPU</th>
+                  <th>Memory</th>
+                  <th>Disk I/O</th>
+                </tr>
+              </thead>
+              <tbody id="serverTableBody"></tbody>
+            </table>
+          </section>
+          <section class="ai-assistant-section animate-in rbac-no-viewer" id="serverAISection">
+            <div class="ai-header">
+              <div class="ai-avatar" style="background:var(--gradient-blue);">🖥️</div>
+              <div class="ai-header-text">
+                <h3>Server AI Assistant</h3>
+                <p>Ask about server performance, CPU, memory, and troubleshooting</p>
+              </div>
+            </div>
+            <div class="quick-actions"><button class="quick-chip" data-query="Which server has highest CPU usage?"
+                data-ctx="server">⚡ High CPU</button><button class="quick-chip"
+                data-query="Any server with memory issues?" data-ctx="server">🧠 Memory</button><button
+                class="quick-chip" data-query="Server performance overview" data-ctx="server">📊
+                Performance</button><button class="quick-chip" data-query="How to optimize server load?"
+                data-ctx="server">🔧 Optimize</button></div>
+            <div class="chat-messages" id="serverChatMessages"></div>
+            <div class="chat-input-row"><input type="text" id="serverChatInput" placeholder="Ask about servers…"
+                autocomplete="off"><button id="serverChatSend">Send ➤</button></div>
+          </section>
+          <div class="rbac-viewer-notice rbac-viewer-only"><span>🔒</span> AI Assistant and export features require
+            Operator or Admin access.</div>
+        </div>
+
+        <!-- ==================== STORAGE ==================== -->
+        <div class="dash-view" id="view-storage">
+          <section class="status-grid" style="grid-template-columns:repeat(3,1fr);">
+            <div class="status-card storage animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">💽</div>
+                <div class="card-badge badge-online" id="stgTotalBadge">Online</div>
+              </div>
+              <div class="card-value" id="stgTotalValue">—</div>
+              <div class="card-label">Total Capacity</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="stgTotalBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="status-card freespace animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">📂</div>
+                <div class="card-badge badge-online" id="stgFreeBadge">OK</div>
+              </div>
+              <div class="card-value" id="stgFreeValue">—</div>
+              <div class="card-label">Free Space</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="stgFreeBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="status-card health animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">📈</div>
+                <div class="card-badge badge-healthy" id="stgIOBadge">Normal</div>
+              </div>
+              <div class="card-value" id="stgIOValue">—</div>
+              <div class="card-label">Avg. IOPS</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="stgIOBar" style="width:0%"></div>
+              </div>
+            </div>
+          </section>
+          <section class="panels-grid">
+            <div class="panel animate-in">
+              <div class="panel-header">
+                <div class="panel-title"><span class="title-icon">📊</span> Storage Distribution</div>
+              </div>
+              <div class="chart-wrap"><canvas id="storageChart"></canvas></div>
+            </div>
+            <div class="panel animate-in">
+              <div class="panel-header">
+                <div class="panel-title"><span class="title-icon">💽</span> Storage Per Server</div>
+              </div>
+              <table class="server-table">
+                <thead>
+                  <tr>
+                    <th>Server</th>
+                    <th>Used</th>
+                    <th>Total</th>
+                    <th>Usage</th>
+                  </tr>
+                </thead>
+                <tbody id="storageDetailTable"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="ai-assistant-section animate-in rbac-no-viewer">
+            <div class="ai-header">
+              <div class="ai-avatar" style="background:var(--gradient-purple);">💽</div>
+              <div class="ai-header-text">
+                <h3>Storage AI Assistant</h3>
+                <p>Ask about capacity, RAID, disk health, and optimization</p>
+              </div>
+            </div>
+            <div class="quick-actions"><button class="quick-chip" data-query="Why is storage usage high?"
+                data-ctx="storage">💾 High usage</button><button class="quick-chip"
+                data-query="How to free up disk space?" data-ctx="storage">🧹 Free space</button><button
+                class="quick-chip" data-query="Explain RAID configuration" data-ctx="storage">🔧 RAID</button><button
+                class="quick-chip" data-query="Check disk health" data-ctx="storage">❤️ Disk health</button></div>
+            <div class="chat-messages" id="storageChatMessages"></div>
+            <div class="chat-input-row"><input type="text" id="storageChatInput" placeholder="Ask about storage…"
+                autocomplete="off"><button id="storageChatSend">Send ➤</button></div>
+          </section>
+          <div class="rbac-viewer-notice rbac-viewer-only"><span>🔒</span> AI Assistant requires Operator or Admin
+            access.</div>
+        </div>
+
+        <!-- ==================== BACKUPS ==================== -->
+        <div class="dash-view" id="view-backups">
+          <section class="status-grid" style="grid-template-columns:repeat(3,1fr);">
+            <div class="status-card backup animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">☁️</div>
+                <div class="card-badge badge-online" id="bkpStatusBadge">Healthy</div>
+              </div>
+              <div class="card-value" id="bkpLastValue">—</div>
+              <div class="card-label">Last Backup</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="bkpLastBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="status-card storage animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">💾</div>
+                <div class="card-badge badge-online" id="bkpCapBadge">OK</div>
+              </div>
+              <div class="card-value" id="bkpCapValue">—</div>
+              <div class="card-label">Backup Storage Used</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="bkpCapBar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="status-card health animate-in">
+              <div class="card-accent"></div>
+              <div class="card-header">
+                <div class="card-icon">🔁</div>
+                <div class="card-badge badge-healthy" id="bkpSchedBadge">Active</div>
+              </div>
+              <div class="card-value" id="bkpSchedValue">—</div>
+              <div class="card-label">Scheduled Backups</div>
+              <div class="card-bar">
+                <div class="bar-fill" id="bkpSchedBar" style="width:0%"></div>
+              </div>
+            </div>
+          </section>
+          <section class="panel animate-in">
+            <div class="panel-header">
+              <div class="panel-title"><span class="title-icon">📋</span> Backup Schedule & History</div>
+            </div>
+            <table class="server-table">
+              <thead>
+                <tr>
+                  <th>Server</th>
+                  <th>Last Backup</th>
+                  <th>Type</th>
+                  <th>Size</th>
+                  <th>Status</th>
+                  <th>Next</th>
+                </tr>
+              </thead>
+              <tbody id="backupDetailTable"></tbody>
+            </table>
+          </section>
+          <section class="ai-assistant-section animate-in rbac-no-viewer">
+            <div class="ai-header">
+              <div class="ai-avatar" style="background:var(--gradient-green);">☁️</div>
+              <div class="ai-header-text">
+                <h3>Backup AI Assistant</h3>
+                <p>Ask about backup schedules, restore, retention, and offsite</p>
+              </div>
+            </div>
+            <div class="quick-actions"><button class="quick-chip" data-query="Check backup status" data-ctx="backup">☁️
+                Status</button><button class="quick-chip" data-query="How to restore from backup?" data-ctx="backup">🔄
+                Restore</button><button class="quick-chip" data-query="Backup retention policy" data-ctx="backup">📅
+                Retention</button><button class="quick-chip" data-query="How to set up offsite backup?"
+                data-ctx="backup">🌐 Offsite</button></div>
+            <div class="chat-messages" id="backupChatMessages"></div>
+            <div class="chat-input-row"><input type="text" id="backupChatInput" placeholder="Ask about backups…"
+                autocomplete="off"><button id="backupChatSend">Send ➤</button></div>
+          </section>
+          <div class="rbac-viewer-notice rbac-viewer-only"><span>🔒</span> AI Assistant requires Operator or Admin
+            access.</div>
+        </div>
+
+        <!-- ==================== ALERTS ==================== -->
+        <div class="dash-view" id="view-alerts">
+          <section class="status-grid" style="grid-template-columns:repeat(4,1fr);">
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterAlerts('all')">
+              <div class="card-accent" style="background:var(--gradient-blue);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(59,130,246,0.15);">📋</div>
+              </div>
+              <div class="card-value" id="alertTotalCount">0</div>
+              <div class="card-label">Total Alerts</div>
+            </div>
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterAlerts('critical')">
+              <div class="card-accent" style="background:var(--gradient-red);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(239,68,68,0.15);">🔴</div>
+              </div>
+              <div class="card-value" id="alertCriticalCount">0</div>
+              <div class="card-label">Critical — Incident</div>
+            </div>
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterAlerts('warning')">
+              <div class="card-accent" style="background:var(--gradient-amber);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(245,158,11,0.15);">🟡</div>
+              </div>
+              <div class="card-value" id="alertWarningCount">0</div>
+              <div class="card-label">Warning — AI Fix</div>
+            </div>
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterAlerts('info')">
+              <div class="card-accent" style="background:var(--gradient-green);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(16,185,129,0.15);">🟢</div>
+              </div>
+              <div class="card-value" id="alertInfoCount">0</div>
+              <div class="card-label">Minor — Auto</div>
+            </div>
+          </section>
+          <div class="alert-filter-bar"><span id="alertFilterLabel">Showing: All alerts</span><button
+              class="panel-action-btn" id="resetAlertFilter" style="display:none">Clear Filter</button></div>
+          <section class="panel animate-in">
+            <div class="panel-header">
+              <div class="panel-title"><span class="title-icon">🔔</span> Alert Management</div>
+            </div>
+            <div class="alert-list" id="alertListManaged"></div>
+          </section>
+        </div>
+
+        <!-- ==================== AI ASSISTANT ==================== -->
+        <div class="dash-view" id="view-assistant">
+          <section class="ai-assistant-section animate-in">
+            <div class="ai-header">
+              <div class="ai-avatar">🤖</div>
+              <div class="ai-header-text">
+                <h3>AI Troubleshooting Assistant</h3>
+                <p>General troubleshooting for storage, backups, servers, and infrastructure</p>
+              </div>
+            </div>
+            <div class="ai-guardrail-notice"><span class="guard-icon">🛡️</span><span>This assistant is restricted to
+                <strong>&nbsp;storage & server troubleshooting&nbsp;</strong> topics only.</span></div>
+            <div class="quick-actions"><button class="quick-chip" data-query="Why is storage usage high?"
+                data-ctx="general">💾 High storage</button><button class="quick-chip" data-query="Check backup status"
+                data-ctx="general">☁️ Backup</button><button class="quick-chip" data-query="Server is slow"
+                data-ctx="general">🐢 Slow server</button><button class="quick-chip"
+                data-query="How to free up disk space?" data-ctx="general">🧹 Free space</button></div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-row"><input type="text" id="chatInput"
+                placeholder="Ask about storage, backups, or servers…" autocomplete="off"><button id="chatSendBtn">Send
+                ➤</button></div>
+          </section>
+        </div>
+
+        <!-- ==================== TICKET TRACKER ==================== -->
+        <div class="dash-view" id="view-tracker">
+          <section class="status-grid" style="grid-template-columns:repeat(4,1fr);">
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterTickets('all')">
+              <div class="card-accent" style="background:var(--gradient-blue);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(59,130,246,0.15);">📋</div>
+              </div>
+              <div class="card-value" id="ticketTotalCount">0</div>
+              <div class="card-label">Total Tickets</div>
+            </div>
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterTickets('incident')">
+              <div class="card-accent" style="background:var(--gradient-red);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(239,68,68,0.15);">🎫</div>
+              </div>
+              <div class="card-value" id="ticketIncCount">0</div>
+              <div class="card-label">Incidents</div>
+            </div>
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterTickets('change')">
+              <div class="card-accent" style="background:var(--gradient-amber);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(245,158,11,0.15);">🔄</div>
+              </div>
+              <div class="card-value" id="ticketCrqCount">0</div>
+              <div class="card-label">Change Requests</div>
+            </div>
+            <div class="status-card animate-in" style="cursor:pointer" onclick="filterTickets('vendor')">
+              <div class="card-accent" style="background:var(--gradient-purple);"></div>
+              <div class="card-header">
+                <div class="card-icon" style="background:rgba(139,92,246,0.15);">🏢</div>
+              </div>
+              <div class="card-value" id="ticketVdrCount">0</div>
+              <div class="card-label">Vendor Cases</div>
+            </div>
+          </section>
+          <div class="alert-filter-bar">
+            <span id="ticketFilterLabel">Showing: All tickets</span>
+            <div class="panel-actions">
+              <button class="panel-action-btn" id="exportTicketsCSV">📥 Export CSV</button>
+              <button class="panel-action-btn" id="resetTicketFilter" style="display:none">Clear Filter</button>
+            </div>
+          </div>
+          <section class="panel animate-in">
+            <div class="panel-header">
+              <div class="panel-title"><span class="title-icon">📋</span> Ticket Management</div>
+            </div>
+            <div class="ticket-list" id="ticketListManaged"></div>
+          </section>
+        </div>
+
+        <!-- ==================== AUDIT LOG (admin only) ==================== -->
+        <div class="dash-view" id="view-auditlog">
+          <section class="panel animate-in">
+            <div class="panel-header">
+              <div class="panel-title"><span class="title-icon">📋</span> Audit Log</div>
+              <div class="panel-actions"><button class="panel-action-btn" id="exportAuditCSV">📥 Export</button><button
+                  class="panel-action-btn" id="clearAuditBtn">🗑️ Clear</button></div>
+            </div>
+            <div class="audit-log-container">
+              <table class="server-table audit-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="auditViewBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
